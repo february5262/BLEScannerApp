@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 import Toast from 'react-native-toast-message';
 import DeviceDetailsScreen from './DeviceDetailsScreen';
+import { requestBluetoothPermissions } from './utils/PermissionHandler';
 
 const Stack = createStackNavigator();
 
@@ -39,53 +40,11 @@ const DeviceListScreen: React.FC<DeviceListScreenProps> = ({ navigation }) => {
   }, [manager]);
 
   const checkPermissions = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const grantedScan = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          {
-            title: '블루투스 스캔 권한',
-            message: '이 앱은 블루투스 기기를 스캔하기 위해 권한이 필요합니다.',
-            buttonNeutral: '나중에 묻기',
-            buttonNegative: '취소',
-            buttonPositive: '확인',
-          }
-        );
-        
-        const grantedConnect = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          {
-            title: '블루투스 연결 권한',
-            message: '이 앱은 블루투스 기기에 연결하기 위해 권한이 필요합니다.',
-            buttonNeutral: '나중에 묻기',
-            buttonNegative: '취소',
-            buttonPositive: '확인',
-          }
-        );
-        
-        const grantedLocation = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: '위치 권한',
-            message: '이 앱은 블루투스 기기를 스캔하기 위해 위치 접근 권한이 필요합니다.',
-            buttonNeutral: '나중에 묻기',
-            buttonNegative: '취소',
-            buttonPositive: '확인',
-          }
-        );
-    
-        if (grantedScan === PermissionsAndroid.RESULTS.GRANTED 
-            && grantedConnect === PermissionsAndroid.RESULTS.GRANTED 
-            && grantedLocation === PermissionsAndroid.RESULTS.GRANTED) {
-          scanForDevices();
-        } else {
-          console.log("Bluetooth permissions not granted");
-        }
-      } catch (err) {
-        console.warn(err);
-      }
-    } else {
+    const granted = await requestBluetoothPermissions();
+    if (granted) {
       scanForDevices();
+    } else {
+      console.log("Bluetooth permissions not granted");
     }
   };
 
@@ -95,7 +54,6 @@ const DeviceListScreen: React.FC<DeviceListScreenProps> = ({ navigation }) => {
         console.log("scanning error:",error);
         return;
       }
-
       if (device && device.name && !devices.has(device.id)) {
         setDevices((prevDevices) => new Map(prevDevices.set(device.id, device)));
       }
