@@ -1,117 +1,165 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useState, useEffect } from 'react';
+import { SafeAreaView, FlatList, Text, TouchableOpacity, StyleSheet, PermissionsAndroid, Platform } from 'react-native';
+import { BleManager, Device } from 'react-native-ble-plx';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
+import Toast from 'react-native-toast-message';
+import DeviceDetailsScreen from './DeviceDetailsScreen';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+const Stack = createStackNavigator();
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+type RootStackParamList = {
+  DeviceList: undefined;
+  DeviceDetails: { deviceId: string; deviceName: string|null; deviceRSSI: number|null };
+};
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+type DeviceListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'DeviceList'>;
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+interface DeviceListScreenProps {
+  navigation: DeviceListScreenNavigationProp;
 }
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+const DeviceListScreen: React.FC<DeviceListScreenProps> = ({ navigation }) => {
+  const [devices, setDevices] = useState<Map<string, Device>>(new Map());
+  const [manager] = useState(new BleManager());
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  useEffect(() => {
+    const subscription = manager.onStateChange((state) => {
+      if (state === 'PoweredOn') {
+        checkPermissions();  // 권한 확인 후 스캔
+      } else {
+        console.log('Bluetooth 상태:', state);
+      }
+    }, true);
+
+    return () => {
+      subscription.remove();
+      manager.destroy();
+    };
+  }, [manager]);
+
+  const checkPermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const grantedScan = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          {
+            title: '블루투스 스캔 권한',
+            message: '이 앱은 블루투스 기기를 스캔하기 위해 권한이 필요합니다.',
+            buttonNeutral: '나중에 묻기',
+            buttonNegative: '취소',
+            buttonPositive: '확인',
+          }
+        );
+        
+        const grantedConnect = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          {
+            title: '블루투스 연결 권한',
+            message: '이 앱은 블루투스 기기에 연결하기 위해 권한이 필요합니다.',
+            buttonNeutral: '나중에 묻기',
+            buttonNegative: '취소',
+            buttonPositive: '확인',
+          }
+        );
+        
+        const grantedLocation = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: '위치 권한',
+            message: '이 앱은 블루투스 기기를 스캔하기 위해 위치 접근 권한이 필요합니다.',
+            buttonNeutral: '나중에 묻기',
+            buttonNegative: '취소',
+            buttonPositive: '확인',
+          }
+        );
+    
+        if (grantedScan === PermissionsAndroid.RESULTS.GRANTED 
+            && grantedConnect === PermissionsAndroid.RESULTS.GRANTED 
+            && grantedLocation === PermissionsAndroid.RESULTS.GRANTED) {
+          scanForDevices();
+        } else {
+          console.log("Bluetooth permissions not granted");
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    } else {
+      scanForDevices();
+    }
   };
 
+  const scanForDevices = () => {
+    manager.startDeviceScan(null, null, (error, device) => {
+      if (error) {
+        console.log("scanning error:",error);
+        return;
+      }
+
+      if (device && device.name && !devices.has(device.id)) {
+        setDevices((prevDevices) => new Map(prevDevices.set(device.id, device)));
+      }
+    });
+
+    setTimeout(() => {
+      manager.stopDeviceScan();
+    }, 10000); // 10초 후 스캔 중지
+  };
+
+  const renderItem = ({ item }: { item: Device }) => (
+    <TouchableOpacity
+      style={styles.deviceItem}
+      onPress={() => navigation.navigate('DeviceDetails', { 
+        deviceId: item.id, 
+        deviceName: item.name, 
+        deviceRSSI: item.rssi 
+      })}>
+      <Text style={styles.deviceName}>{item.name}</Text>
+      <Text style={styles.deviceUUID}>UUID: {item.id}</Text>
+    </TouchableOpacity>
+  );
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={Array.from(devices.values())}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
     </SafeAreaView>
   );
-}
+};
+
+const App = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator>
+        <Stack.Screen name="DeviceList" component={DeviceListScreen} options={{ title: 'Devices' }} />
+        <Stack.Screen name="DeviceDetails" component={DeviceDetailsScreen} options={{ title: 'Device Details' }} />
+      </Stack.Navigator>
+      <Toast />
+    </NavigationContainer>
+  );
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 10,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  deviceItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
   },
-  sectionDescription: {
-    marginTop: 8,
+  deviceName: {
     fontSize: 18,
-    fontWeight: '400',
+    fontWeight: 'bold',
   },
-  highlight: {
-    fontWeight: '700',
+  deviceUUID: {
+    fontSize: 14,
+    color: '#888',
   },
 });
 

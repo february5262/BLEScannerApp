@@ -48,5 +48,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth is required to find devices.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location is required to scan for Bluetooth devices.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location is required to get the current WiFi SSID.</string>
 </dict>
 </plist>
