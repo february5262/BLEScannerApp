@@ -36,9 +36,9 @@
    cd BLEScannerApp
 2. **의존성 설치**:
    ```bash
-      npm install
-      cd ios
-      pod install
+   npm install
+   cd ios
+   pod install
 3. **앱 실행**:
    ```bash
    npx react-native run-android
@@ -50,4 +50,4 @@
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License
